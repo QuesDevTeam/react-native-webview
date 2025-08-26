@@ -101,7 +101,31 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
             }
             var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
 
-            // Sanitize filename by replacing invalid characters with "_"
+          if (fileName.endsWith(";")) {
+            fileName = fileName.substring(0, (fileName.length() - 1))
+          }
+
+          if (contentDisposition.startsWith("attachment; filename=\"=?UTF-8?")) {
+            val pattern: String = "filename=\"(.*?)\""
+            val r: Pattern = Pattern.compile(pattern)
+            val m: Matcher = r.matcher(contentDisposition)
+
+            if (m.find()) {
+              try {
+                fileName = FileNameDecoder.decodeFileName(contentDisposition)
+              } catch (e: Exception) {
+              }
+            }
+          }
+
+          if (contentDisposition.endsWith(".HWP") || contentDisposition.endsWith(".hwp")) {
+            if (!fileName.endsWith(".HWP") && !fileName.endsWith(".hwp")) {
+              fileName = fileName.toString() + ".hwp"
+            }
+          }
+
+
+          // Sanitize filename by replacing invalid characters with "_"
             fileName = fileName.replace(invalidCharRegex, "_")
 
             val downloadMessage = "Downloading $fileName"
@@ -722,3 +746,59 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
         }
     }
 }
+
+internal object FileNameDecoder {
+  fun decodeFileName(encodedFileName: String?): String {
+    var decodedFileName: String = ""
+    val pattern: Pattern = Pattern.compile("=\\?(.*?)\\?(.)\\?(.*?)\\?=")
+
+    val matcher: Matcher = pattern.matcher(encodedFileName)
+    while (matcher.find()) {
+      val encoding: String = matcher.group(1)
+      val type: String = matcher.group(2)
+      val encoded: String = matcher.group(3)
+
+      val decodedBytes: ByteArray?
+      if (type.equalsIgnoreCase("Q")) {
+        // Quoted-Printable decoding
+        decodedBytes = decodeQuotedPrintable(encoded, encoding)
+      } else {
+        // Base64 decoding
+        decodedBytes = android.util.Base64.decode(encoded, Base64.DEFAULT)
+      }
+      try {
+        decodedFileName += URLDecoder.decode(
+          String(decodedBytes, StandardCharsets.UTF_8),
+          "ISO8859_1"
+        )
+      } catch (e: UnsupportedEncodingException) {
+        e.printStackTrace()
+      }
+    }
+
+    // Remove any remaining quotes and spaces from the decoded filename
+    return decodedFileName.replaceAll("[\" ]", "")
+  }
+
+  private fun decodeQuotedPrintable(encoded: String, charset: String): ByteArray? {
+    try {
+      val bytes: ByteArray = encoded.getBytes(StandardCharsets.US_ASCII)
+      val out: ByteArrayOutputStream = ByteArrayOutputStream()
+      var i: Int = 0
+      while (i < bytes.size) {
+        val b: Byte = bytes.get(i)
+        if (b == '='.code.toByte()) {
+          val hex: ByteArray = byteArrayOf(bytes.get(++i), bytes.get(++i))
+          out.write(Integer.parseInt(String(hex), 16))
+        } else {
+          out.write(b)
+        }
+        i++
+      }
+      return out.toByteArray()
+    } catch (e: Exception) {
+      return null
+    }
+  }
+}
+
