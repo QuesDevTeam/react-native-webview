@@ -101,28 +101,28 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
             }
             var fileName = URLUtil.guessFileName(url, contentDisposition, mimetype)
 
-          if (fileName.endsWith(";")) {
-            fileName = fileName.substring(0, (fileName.length() - 1))
-          }
+if (fileName.endsWith(";")) {
+    fileName = fileName.substring(0, fileName.length - 1) // length() → length
+}
 
-          if (contentDisposition.startsWith("attachment; filename=\"=?UTF-8?")) {
-            val pattern: String = "filename=\"(.*?)\""
-            val r: Pattern = Pattern.compile(pattern)
-            val m: Matcher = r.matcher(contentDisposition)
+if (contentDisposition?.startsWith("attachment; filename=\"=?UTF-8?") == true) {
+    val pattern = "filename=\"(.*?)\""
+    val r = Pattern.compile(pattern)
+    val m = r.matcher(contentDisposition)
+    if (m.find()) {
+        try {
+            fileName = FileNameDecoder.decodeFileName(contentDisposition)
+        } catch (_: Exception) { }
+    }
+}
 
-            if (m.find()) {
-              try {
-                fileName = FileNameDecoder.decodeFileName(contentDisposition)
-              } catch (e: Exception) {
-              }
-            }
-          }
-
-          if (contentDisposition.endsWith(".HWP") || contentDisposition.endsWith(".hwp")) {
-            if (!fileName.endsWith(".HWP") && !fileName.endsWith(".hwp")) {
-              fileName = fileName.toString() + ".hwp"
-            }
-          }
+/* === (요청) 원본 .HWP 체크 로직 유지, 단 null-safe 만 추가 === */
+if (contentDisposition?.endsWith(".HWP") == true || contentDisposition?.endsWith(".hwp") == true) {
+    if (!fileName.endsWith(".HWP") && !fileName.endsWith(".hwp")) {
+        fileName = "$fileName.hwp" // toString() 불필요하지만 동작 동일
+    }
+}
+/* ======================================================== */
 
 
           // Sanitize filename by replacing invalid characters with "_"
