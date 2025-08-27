@@ -31,8 +31,8 @@ import java.net.URL
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.util.Locale
-import java.util.regex.Pattern
 import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 val invalidCharRegex = "[\\\\/%\"]".toRegex()
 
@@ -109,6 +109,16 @@ class RNCWebViewManagerImpl(private val newArch: Boolean = false) {
 if (fileName.endsWith(";")) {
     fileName = fileName.substring(0, fileName.length - 1) // length() → length
 }
+
+            if (fileName.endsWith(".bin")) {
+                val p = Pattern.compile("\"([^\"]*)\"")
+                val m = p.matcher(fileName)
+                fileName = if (m.find()) {
+                    m.group()
+                } else {
+                    fileName.substring(0, (fileName.length - 4))
+                }
+            }
 
 if (contentDisposition?.startsWith("attachment; filename=\"=?UTF-8?") == true) {
     val pattern = "filename=\"(.*?)\""

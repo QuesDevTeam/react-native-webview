@@ -33,6 +33,7 @@ import androidx.annotation.Nullable;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -66,6 +67,8 @@ public final class URLUtil {
             }
         }
 
+        extension = getExtension(filename);
+
         // If all the other http-related approaches failed, use the plain uri
         if (filename == null) {
             String decodedUrl = Uri.decode(url);
@@ -93,7 +96,7 @@ public final class URLUtil {
         // Add an extension if filename does not have one
         int dotIndex = filename.indexOf('.');
         if (dotIndex < 0) {
-            if (mimeType != null) {
+            if (extension == null && mimeType != null) {
                 extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType);
                 if (extension != null) {
                     extension = "." + extension;
@@ -111,7 +114,7 @@ public final class URLUtil {
                 }
             }
         } else {
-            if (mimeType != null) {
+            if (extension == null && mimeType != null) {
                 // Compare the last segment of the extension against the mime type.
                 // If there's a mismatch, discard the entire extension.
                 int lastDotIndex = filename.lastIndexOf('.');
@@ -136,7 +139,7 @@ public final class URLUtil {
     /** Regex used to parse content-disposition headers */
     private static final Pattern CONTENT_DISPOSITION_PATTERN =
             Pattern.compile("attachment(?:;\\s*filename\\s*=\\s*(\"?)([^\"]*)\\1)?(?:;\\s*filename\\s*\\*\\s*=\\s*([^']*)'[^']*'([^']*))?\\s*$",
-            Pattern.CASE_INSENSITIVE);
+                    Pattern.CASE_INSENSITIVE);
 
     /**
      * Parse the Content-Disposition HTTP Header. The format of the header
@@ -163,17 +166,39 @@ public final class URLUtil {
             Matcher m = CONTENT_DISPOSITION_PATTERN.matcher(contentDisposition);
             if (m.find()) {
                 if (m.group(3) != null && m.group(4) != null) {
+                    String filename = m.group(4);
                     try {
-                        return URLDecoder.decode(m.group(4), m.group(3).isEmpty() ? "UTF-8" : m.group(3));
+                        filename = URLDecoder.decode(filename, StandardCharsets.UTF_8.name());
+                        return filename;
                     } catch (UnsupportedEncodingException e) {
-                        // Skip the ext-parameter as the encoding is unsupported
+                        return filename;
                     }
                 }
-                return m.group(2);
+                String filename = m.group(2);
+                try {
+                    filename = URLDecoder.decode(filename, StandardCharsets.UTF_8.name());
+                    return filename;
+                } catch (UnsupportedEncodingException e) {
+                    return filename;
+                }
             }
         } catch (IllegalStateException ex) {
-             // This function is defined as returning null when it can't parse the header
+            // This function is defined as returning null when it can't parse the header
         }
         return null;
+    }
+
+    public static String getExtension(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return null;
+        }
+
+        int dotIndex = filename.lastIndexOf('.');
+        // 점이 없거나, 점이 맨 앞/끝에 있으면 확장자 없음
+        if (dotIndex <= 0 || dotIndex == filename.length() - 1) {
+            return null;
+        }
+
+        return "." + filename.substring(dotIndex + 1);
     }
 }
